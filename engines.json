@@ -1,0 +1,57 @@
+{
+  "_doc": "Inference engines beside llama-server (engines.py). Each is started on the first request to /engines/<name>/..., forwarded its own API (colibri: OpenAI-compatible /v1/...), and stopped after idle_stop_s without requests (0 = never). exclusive: the main llama-server is stopped before this engine starts, and this engine is stopped (after its running requests) before llama-server starts again - for engines that need the node's memory. {port} in cmd is filled with port. Any value may be ${ENV_NAME}, filled from the container environment; an unset name skips that engine with a log line. health: a GET path that answers 200 once the engine is ready, or tcp for an engine with a raw protocol (ready when its port accepts a connection). start_timeout_s: how long a start may take (a 500 GB model's dense part loading from disk takes minutes). Logs: MODELS_DIR/engines/<name>.log.",
+  "engines": [
+    {
+      "name": "colibri",
+      "enabled": true,
+      "_note": "DeepSeek V4.1 Flash (or any model colibri runs) from COLIBRI_MODEL_DIR. --ram is the RAM budget colibri sizes its expert cache from: leave room for the OS and LightRAG. Lossless: never add --topp or --topk (they change which experts are routed). --kv-slots N serves N conversations at once (each with its own cache); 1 keeps DSpark drafting on. The image needs the colibri build stage (see README).",
+      "exclusive": true,
+      "port": 8100,
+      "idle_stop_s": 18000,
+      "start_timeout_s": 36000,
+      "read_timeout_s": 360000,
+      "health": "/v1/models",
+      "COLI_VULKAN": "1",
+      "cmd": ["python3", "/opt/colibri/c/coli", "serve", "--model", "${COLIBRI_MODEL_DIR}", "--host", "127.0.0.1", "--port", "{port}", "--ram", "${COLIBRI_RAM_GB}", "--kv-slots", "1", "--ctx", "32768"],
+      "env": {"V41_STATS": "1", "COLI_VULKAN": "1", "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json", "COLI_TIMERS": "1"}
+    },
+    {
+      "name": "colibri_worker",
+      "enabled": false,
+      "_note": "An expert worker for colibri's cluster mode: the coordinator (the colibri engine above, with CLUSTER_WORKERS=host:port,... in its env) keeps attention, routing and the KV state, and sends each layer's routed experts to the workers as one request. colibri has this for its GLM-5.2 engine; DeepSeek V4.1 needs the same port (the plan's first cluster step). Started through /api/engines/colibri_worker/start, not by requests. Not exclusive: a worker uses only its expert cache.",
+      "exclusive": false,
+      "port": 9100,
+      "idle_stop_s": 0,
+      "start_timeout_s": 18000,
+      "health": "tcp",
+      "COLI_VULKAN": "1",
+      "cmd": ["python3", "/opt/colibri/c/coli", "cluster", "worker", "--model", "${COLIBRI_MODEL_DIR}", "--port", "{port}", "--advertise-host", "${NODE_IP}"],
+      "env": {}
+    },
+{
+  "name": "coder",
+  "enabled": true,
+  "exclusive": true,
+  "port": 8101,
+  "idle_stop_s": 0,
+  "start_timeout_s": 18000,
+  "read_timeout_s": 360000,
+  "health": "/v1/models",
+  "cmd": ["python3", "/opt/colibri/c/coli", "serve", "--model", "/root/.ollama/models/colibri/qwen3-coder-30b", "--host", "127.0.0.1", "--port", "{port}", "--ram", "20", "--cap", "128", "--kv-slots", "1", "--ctx", "16384"],
+  "env": {"COLI_TIMERS": "1"}
+},
+{
+  "name": "deepseek",
+  "enabled": true,
+  "exclusive": true,
+  "port": 8102,
+  "idle_stop_s": 18000,
+  "start_timeout_s": 36000,
+  "read_timeout_s": 360000,
+  "health": "/v1/models",
+  "cmd": ["python3", "/opt/colibri/c/coli", "serve", "--model", "/root/.ollama/models/colibri/deepseek", "--host", "127.0.0.1", "--port", "{port}", "--ram", "${COLIBRI_RAM_GB}", "--kv-slots", "1", "--ctx", "32768"],
+  "env": {"COLI_VULKAN": "1", "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json", "COLI_TIMERS": "1"}
+}
+  ]
+}
+

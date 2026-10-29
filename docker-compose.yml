@@ -1,0 +1,72 @@
+services:
+  magpie:
+    build:
+      args:
+        LLAMA_BACKEND: vulkan
+        COLIBRI_VK: "1"
+#    build: .
+    container_name: magpie
+    ipc: host
+    mem_limit: 32g
+    restart: unless-stopped
+    ports:
+      - "8790:8790"
+    cap_add:
+      - IPC_LOCK
+    devices:
+      - "/dev/dri:/dev/dri"
+      - "/dev/kfd:/dev/kfd"
+    group_add:
+      - "44"   # video
+      - "992"  # render
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ${TEXT_MODELS}:/root/.ollama/models:rw
+      # Hot-edit rules without a rebuild (restart the container after editing; learned data resets itself when the rules change):
+      - ./optimizer_rules.json:/app/optimizer_rules.json:ro
+      # Helper servers (draft slots with live LoRA training, embedding slot) - edit, then restart the container. Read once at startup.
+      - ./aux_servers.json:/app/aux_servers.json:ro
+      # Other engines (colibri) - edit, then restart the container. Read once at startup.
+      - ./engines.json:/app/engines.json:ro
+      # colibri model folders (released checkpoint + dsv41_engram.json from colibri's prepare_dsv41.py, run once). Read-only: its routing history goes to MODELS_DIR/engines (COLI_USAGE in engines.json).
+      # - ${COLIBRI_MODELS}:/models:ro
+    environment:
+      - SERVER_PORT=8790
+      - MODELS_DIR=/root/.ollama/models
+      - NODE_ID=Node3
+      - LLAMA_EXTRA_TAGS=spec_mtp
+      # ROCm env (HSA_OVERRIDE_GFX_VERSION, HSA_ENABLE_SDMA, GGML_CUDA_ENABLE_UNIFIED_MEMORY, HIP/ROCR_VISIBLE_DEVICES) comes from optimizer_rules.json.
+      # Do NOT set them here unless overriding on purpose: a value set here WINS over the rules.
+      # Experiments (comma list; leading '-' disables a default-on one). See /api/optimizer/experiments.
+      - LLAMA_EXPERIMENTS=mtp_spec
+      # Optional: constraints the planner reads (request constraints and the portal manager override these)
+      # - LLAMA_GOALS=ctx,quality,speed
+      # - LLAMA_RESERVE_GB=3
+      # - LLAMA_BOUNDS={"ctx":[8192,140000]}
+      # Optional: portal manager check-in
+      # - PORTAL_SERVER=192.168.1.195:8000
+      # - PORTAL_TOKEN=<access_token cookie value>
+      - LLAMA_RESERVE_GB=2.5
+      - LLAMA_GOALS=speed,ctx,quality
+      - LLAMA_BOUNDS={"ctx":[76000,262144],"ngl":[0,39]}
+      # --- Other engines (engines.json; an engine whose variables are unset is skipped) ---
+      - COLIBRI_VK=1
+      # - COLIBRI_MODEL_DIR=/models/DeepSeek-V4.1-Flash
+      - COLIBRI_MODEL_DIR=/root/.ollama/models/colibri/qwen36-35b
+      - COLIBRI_RAM_GB=24
+      - VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json
+      # - NODE_IP=192.168.0.230
+      # --- Passive Distillation & Draft Model Configuration ---
+#      - PASSIVE_LEARNING_DEFAULT=true
+#      - TARGET_MODEL_NAME=${TARGET_DRAFT}
+#      - DRAFT_MODEL_1_NAME=${DRAFT_1}
+#      - DRAFT_MODEL_1_PORT=8081
+#      - DRAFT_MODEL_2_NAME=${DRAFT_2}
+#      - DRAFT_MODEL_2_PORT=8082
+    security_opt:
+      - seccomp:unconfined
+
+

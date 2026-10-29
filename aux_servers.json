@@ -1,0 +1,30 @@
+{
+  "_doc": "Helper llama-server processes beside the main one (aux_servers.py). Slot model names are as /api/tags lists them (a trailing .gguf is accepted). Any slot value may be ${ENV_NAME}, filled from the container environment (docker-compose.yml / .env) - an unset name skips that slot with a log line. Slot args go to llama-server as given; -c sets the context the agreement measurement trims prompts to. The trainer runs per round with these args; {model} {data} {ctx} {threads} {lora_out} {lora_in} are filled in. Check train.args against `llama-finetune-lora --help` on first start - the startup log warns about flags --help does not mention. yield_to_main: draft evaluation and trainer starts wait while the main model is answering a request.",
+  "spec_k": 6,
+  "cost_ratio": 0.1,
+  "eval_positions": 8,
+  "holdout_every": 5,
+  "holdout_max": 20,
+  "yield_to_main": true,
+  "train": {
+    "_doc": "text: reply = train on the main model's reply text only; prompt+reply also trains on the rendered prompt (only correct if the trainer parses the template's special tokens). stop_server frees the slot's memory while its trainer runs. parallel = rounds that may train at the same time. A round starts only when free memory (container limit aware, minus trainers already running) covers model file size x mem_factor + min_free_gb; otherwise it is logged as round_skipped and retried on the next sample. mem_factor is an estimate (frozen base + F32 adapter + backprop buffers at ctx) - correct it from the trainer's peak use in round_NNNN.log.",
+    "mem_factor": 1.3,
+    "bin": "/app/trainer/llama-finetune-lora",
+    "env": {"LD_LIBRARY_PATH": "/app/trainer:/opt/rocm/lib"},
+    "text": "reply",
+    "min_tokens": 1024,
+    "parallel": 2,
+    "min_free_gb": 1.5,
+    "stop_server": true,
+    "ctx": 512,
+    "threads": 4,
+    "args": ["-m", "{model}", "-f", "{data}", "-c", "{ctx}", "-b", "{ctx}", "-ub", "{ctx}", "-fa", "off", "-t", "{threads}", "--lora-rank", "8", "--lora-alpha", "16", "-o", "{lora_out}"],
+    "args_continue": ["--lora", "{lora_in}"]
+  },
+  "slots": [
+    {"name": "draft_a", "role": "draft", "enabled": false, "model": "${DRAFT_MODEL_1_NAME}", "port": "${DRAFT_MODEL_1_PORT}", "args": ["-c", "4096", "-ngl", "99", "-t", "2", "--no-context-shift"]},
+    {"name": "draft_b", "role": "draft", "enabled": false, "model": "${DRAFT_MODEL_2_NAME}", "port": "${DRAFT_MODEL_2_PORT}", "args": ["-c", "4096", "-ngl", "99", "-t", "2", "--no-context-shift"]},
+    {"name": "embed", "role": "embed", "enabled": true, "model": "bge-m3", "aliases": ["bge-m3", "bge-m3:latest"], "port": 8083, "args": ["--embedding", "-c", "8192", "-b", "2048", "-ub", "2048", "-ngl", "99", "-t", "2"]}
+  ]
+}
+

@@ -1,0 +1,18 @@
+{
+  "_doc": "Fleet, the node side (fleet.py): a journal of what this node does, what it holds, and the actions and tests a manager (the portal's Fleet tool) may ask for. Read once at startup - restart the container after editing. FLEET=0 in the environment turns all of it off.",
+  "journal": {"_doc": "MODELS_DIR/fleet/journal.<first id>.jsonl. A file is closed at max_mb and a new one started; the oldest files beyond keep_files are deleted (20 MB x 5 keeps weeks of a busy node). memory_events: newest events kept in memory, so a reader that keeps up never reads the files.", "max_mb": 20, "keep_files": 5, "memory_events": 5000},
+  "sample_s": 30,
+  "apply": {
+    "_doc": "Which actions this node accepts from a manager. mode: on = carry them out; dry_run = only journal what was asked; off = refuse all. allow: the action names accepted. idle_only: warm, unload, prefetch and engine start/stop are refused while the node answers a request (unless the manager sends force). This is the node owner's setting: a manager cannot change it.",
+    "mode": "on",
+    "allow": ["warm", "unload", "kv_save", "kv_drop", "pin", "unpin", "prefetch", "engine_start", "engine_stop"],
+    "idle_only": true
+  },
+  "tests": {"_doc": "allow: run tests a manager asks for (POST /fleet/test). idle_wait_s: before each measurement a test waits up to this long for the node to be idle.", "allow": true, "idle_wait_s": 600},
+  "prefetch": {"_doc": "Reading a model file into the page cache: read size per call. The read pauses while the node answers a request.", "chunk_mb": 16},
+  "collectors": [
+    {"_doc": "colibri's scheduler metrics (Prometheus text at its /metrics): queue, active, first-output and queue-wait histograms. Read only while the engine runs. match: a regex on metric names.", "name": "colibri_metrics", "type": "prometheus", "url": "http://127.0.0.1:8100/metrics", "engine": "colibri", "match": "^colibri_scheduler_", "every_s": 30, "enabled": false},
+    {"_doc": "EXAMPLE to adapt: lines of an engine's log matched by a regex; the named groups become the event's fields. Set the pattern from a real line of colibri's profile output (PROF=1 in the engine's env) before enabling.", "name": "colibri_profile", "type": "log_regex", "path": "${MODELS_DIR}/engines/colibri.log", "pattern": "(?P<tok_s>[0-9.]+) tok/s", "kind": "engine.profile", "every_s": 15, "enabled": false},
+    {"_doc": "The size of colibri's routing-usage file: shows when the learned expert heat changes. The path must be the model folder colibri serves.", "name": "colibri_usage_file", "type": "file_stat", "path": "${COLIBRI_MODEL_DIR}/.coli_usage", "every_s": 300, "enabled": false}
+  ]
+}
