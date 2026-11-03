@@ -1,0 +1,57 @@
+# Magpie - stateful llama.cpp supervisor (Ollama wire-compatible) for ARM64 / Raspberry Pi 5 / 500.
+# Optimized for pure CPU execution with OpenMP multithreading.
+
+# Stage 1: Build llama-server for ARM64
+FROM ubuntu:22.04 AS builder
+
+ARG LLAMA_CPP_REF=master
+
+# Install build dependencies for ARM64
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone https://github.com/ggml-org/llama.cpp.git && \
+    cd llama.cpp && \
+    git checkout ${LLAMA_CPP_REF} && \
+    git log -1 --format="llama.cpp build ref: %H %cd" | tee /build/LLAMA_CPP_REF.txt
+
+WORKDIR /build/llama.cpp
+
+# Build llama-server optimized for ARM64 with OpenMP support
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DGGML_OPENMP=ON \
+    -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . --config Release --target llama-server -j4
+
+# Stage 2: Runtime Environment
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    libgomp1 \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy compiled binaries from builder
+COPY --from=builder /build/llama.cpp/build/bin/ /app/
+COPY --from=builder /build/LLAMA_CPP_REF.txt /app/
+
+# Copy application scripts
+
+COPY . .
+
+EXPOSE 8790
+CMD ["python3", "main.py"]
