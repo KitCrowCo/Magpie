@@ -1,0 +1,56 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Magpie diagnostics</title>
+<style>body{font:15px system-ui,sans-serif;max-width:58rem;margin:.6rem auto;padding:0 .8rem;color:#222;background:#fbfbf8}#log div{margin:.4rem 0;white-space:pre-wrap;line-height:1.45}.u{color:#1a4f8a}.t{color:#777;font-size:.85em}textarea,input[type=text]{width:100%;box-sizing:border-box;font:inherit}#dbg{background:#1d2021;color:#b8e0a8;padding:.6rem;max-height:22rem;overflow:auto;white-space:pre-wrap;font-size:.8rem}label{margin-right:.7rem;white-space:nowrap}button{margin:.15rem .1rem;font:inherit}fieldset{border:1px solid #ccc;margin:.4rem 0;padding:.3rem .6rem}legend{font-size:.85rem;color:#555}</style>
+<select id="m"></select> <button onclick="clr()">New chat</button> <span id="st"></span>
+<fieldset><legend>Request options (merged into the request; constraints go under "constraints")</legend>
+<textarea id="o" rows="2">{}</textarea>
+<label><input type="checkbox" id="cs" checked> stream</label><label><input type="checkbox" id="cq"> show request</label><label><input type="checkbox" id="cr"> show raw response</label><label><input type="checkbox" id="ct" checked> show thinking</label>
+<label>experiments for this request: <input type="text" id="ex" placeholder="e.g. mtp_spec,-tool_calls (blank = node default)" style="width:18rem"></label>
+</fieldset>
+<div id="log"></div>
+<textarea id="q" rows="3" placeholder="Message (Ctrl+Enter to send)" onkeydown="if(event.ctrlKey&&event.key=='Enter')send()"></textarea>
+<button onclick="send()">Send</button> <button onclick="ac&&ac.abort()">Stop</button>
+<fieldset><legend>Diagnostics</legend>
+<button onclick="plan()">Plan (dry run)</button><button onclick="g('/api/optimizer/sysinfo')">Sysinfo</button><button onclick="g('/api/optimizer/experiments')">Experiments</button><button onclick="g('/api/ps')">Running</button><button onclick="g('/api/optimizer/last_crash')">Last crash</button><button onclick="g('/api/optimizer/log?n=150')">Log tail</button><button onclick="g('/api/hang_log')">Crash journal</button><button onclick="g('/api/cache/list')">Ring list</button><button onclick="g('/api/optimizer/clear_ring')">Clear KV ring</button><button onclick="g('/api/optimizer/forget')">Forget learned</button><button onclick="dbg.textContent=''">Clear panel</button>
+</fieldset>
+<pre id="dbg"></pre>
+<script>
+var KEY=sessionStorage.getItem('k')||prompt('API key (blank if this node is open)')||'';sessionStorage.setItem('k',KEY);var _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=Object.assign({},o.headers,KEY?{Authorization:'Bearer '+KEY}:{});return _f(u,o)};
+var H=[],ac=null;
+fetch('/api/tags?capability=chat').then(r=>r.json()).then(d=>d.models.forEach(x=>m.add(new Option(x.name))));
+function show(l,o){dbg.textContent+='['+new Date().toLocaleTimeString()+'] '+l+': '+(typeof o=='string'?o:JSON.stringify(o,null,1))+'\n';dbg.scrollTop=dbg.scrollHeight}
+function add(c,t){var d=document.createElement('div');d.className=c;d.textContent=t;log.appendChild(d);return d}
+function clr(){H=[];log.innerHTML=''}
+function opts(){try{var op=JSON.parse(o.value||'{}');if(ex.value.trim()){op.constraints=op.constraints||{};op.constraints.experiments=ex.value.split(',').map(s=>s.trim()).filter(Boolean)}return op}catch(e){show('options JSON error',String(e));return null}}
+async function g(u){try{var r=await fetch(u);show(u+' -> '+r.status,await r.json())}catch(e){show(u,String(e))}}
+async function plan(){var op=opts();if(!op)return;var r=await fetch('/api/optimizer/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:m.value,options:op})});show('plan -> '+r.status,await r.json())}
+async function send(){
+ var t=q.value.trim(),op=opts(); if(!t||ac||!op) return; q.value=''; H.push({role:'user',content:t});
+ add('u',t); var box=add('a',''),think=add('t',''),text='',th='',body={model:m.value,messages:H,stream:cs.checked,options:op};
+ if(cq.checked) show('REQUEST',body);
+ ac=new AbortController(); st.textContent='working...'; var t0=Date.now();
+ try{
+  var r=await fetch('/api/chat',{method:'POST',signal:ac.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(cr.checked) show('HTTP',r.status);
+  if(!r.ok) throw new Error(await r.text());
+  if(!cs.checked){var j=await r.json(); if(cr.checked) show('RAW',j); text=(j.message||{}).content||''; th=(j.message||{}).thinking||''; box.textContent=text; if(ct.checked&&th) think.textContent='thinking: '+th; if(j.error) box.textContent+=' [error] '+j.error}
+  else{
+   var rd=r.body.getReader(),dec=new TextDecoder(),buf='';
+   for(;;){
+    var x=await rd.read(); if(x.done) break;
+    buf+=dec.decode(x.value,{stream:true}); var ls=buf.split('\n'); buf=ls.pop();
+    for(var l of ls){
+     if(!l.trim()) continue; if(cr.checked) show('RAW',l); var j=JSON.parse(l);
+     if(j.error){box.textContent+=' [error] '+j.error; continue}
+     var mm=j.message||{}; text+=mm.content||''; th+=mm.thinking||'';
+     if(mm.tool_calls) show('TOOL CALLS',mm.tool_calls);
+     box.textContent=text; think.textContent=(ct.checked&&th)?'thinking: '+th:'';
+     if(j.done&&j.eval_count&&j.eval_duration) st.textContent=(j.eval_count/(j.eval_duration/1e9)).toFixed(1)+' t/s';
+    }
+   }
+  }
+ }catch(e){ if(e.name!='AbortError'){box.textContent+=' [error] '+e; show('ERROR',String(e))} }
+ show('done',((Date.now()-t0)/1000).toFixed(1)+'s, '+text.length+' chars');
+ if(text) H.push({role:'assistant',content:text}); else H.pop();
+ ac=null; if(st.textContent=='working...') st.textContent='';
+}
+</script>

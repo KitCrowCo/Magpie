@@ -1,0 +1,161 @@
+{
+ "name": "text_encoder",
+ "for": [
+  "image"
+ ],
+ "label": "Text encoder for Flux.2: intermediate layers of a Qwen3 GGUF, through a small llama.cpp tool, with no PyTorch",
+ "provides": [
+  "text_encode"
+ ],
+ "settings": {
+  "adapters.flux2_text.runtime.env.TEXT_ENCODER_LAYERS": {
+   "when": "runtime"
+  },
+  "adapters.flux2_text.runtime.env.FLUX2_QWEN_MODEL": {
+   "when": "runtime",
+   "hint": "The GGUF file to encode with"
+  }
+ },
+ "drivers": [
+  {
+   "name": "llama_tool",
+   "programs": [
+    "cmake",
+    "c++",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git"
+    ],
+    "brew": [
+     "cmake",
+     "git"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp-te",
+     "ref": "{opt:ref}"
+    },
+    {
+     "copy": "{dir}/qwen3-layer-dump.cpp",
+     "to": "{src}/llama.cpp-te/examples/qwen3-layer-dump/qwen3-layer-dump.cpp"
+    },
+    {
+     "copy": "{dir}/CMakeLists.tool.txt",
+     "to": "{src}/llama.cpp-te/examples/qwen3-layer-dump/CMakeLists.txt"
+    },
+    {
+     "line": "add_subdirectory(qwen3-layer-dump)",
+     "file": "{src}/llama.cpp-te/examples/CMakeLists.txt"
+    },
+    {
+     "run": [
+      "cmake",
+      "-B",
+      "build",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DLLAMA_CURL=OFF",
+      "-DLLAMA_BUILD_TESTS=OFF",
+      "-DLLAMA_BUILD_EXAMPLES=ON"
+     ],
+     "cwd": "{src}/llama.cpp-te"
+    },
+    {
+     "run": [
+      "cmake",
+      "--build",
+      "build",
+      "--target",
+      "llama-qwen3-layer-dump",
+      "-j{jobs}"
+     ],
+     "cwd": "{src}/llama.cpp-te"
+    },
+    {
+     "pip": [
+      "uvicorn",
+      "starlette",
+      "numpy"
+     ]
+    }
+   ],
+   "provides": {
+    "dump": "{src}/llama.cpp-te/build/bin/llama-qwen3-layer-dump"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  }
+ ],
+ "defaults": {
+  "adapters": {
+   "flux2_text": {
+    "capabilities": {
+     "text_encode": {
+      "path": "/encode"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{python}",
+      "-m",
+      "uvicorn",
+      "service:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "cwd": "{dir}",
+     "health": "/health",
+     "start_timeout_s": 120,
+     "env": {
+      "EMBED_VAULT_DIR": "{loc:vault}",
+      "QWEN3_LAYER_DUMP_BIN": "{bin:dump}",
+      "FLUX2_QWEN_MODEL": "{loc:image_models}/qwen3-8b-q8_0.gguf",
+      "TEXT_ENCODER_LAYERS": "9,18,27",
+      "TEXT_ENCODER_HIDDEN_SIZE": "4096"
+     }
+    },
+    "memory": {
+     "ram_gb": 9
+    },
+    "idle_stop_s": 300
+   }
+  }
+ }
+}

@@ -1,0 +1,385 @@
+{
+ "name": "llama",
+ "label": "llama.cpp: chat, vision, completion, embeddings, decision models, LoRA, KV cache",
+ "provides": [
+  "chat",
+  "generate",
+  "embed",
+  "decide"
+ ],
+ "needs": [
+  "llm"
+ ],
+ "defaults": {
+  "_doc": "embed_archs: GGUF architectures that only embed. roles: the small servers beside the main one - their llama-server arguments, whether they stay up once started (keep: the main model plans around them), and the default model when a request names none.",
+  "embed_archs": [
+   "bert",
+   "nomic-bert",
+   "jina-bert-v2",
+   "new-bert",
+   "roberta",
+   "xlm-roberta"
+  ],
+  "role_ram_factor": 1.2,
+  "roles": {
+   "embed": {
+    "keep": true,
+    "idle_stop_s": 0,
+    "args": [
+     "--embedding",
+     "-c",
+     "8192",
+     "-b",
+     "2048",
+     "-ub",
+     "2048",
+     "-ngl",
+     "99",
+     "-t",
+     "2"
+    ]
+   },
+   "decide": {
+    "keep": true,
+    "idle_stop_s": 0,
+    "args": [
+     "-c",
+     "2048",
+     "-ngl",
+     "99",
+     "-t",
+     "2",
+     "--jinja"
+    ]
+   }
+  }
+ },
+ "auto": true,
+ "for": [
+  "text"
+ ],
+ "recommend": {
+  "min_ram_gb": 3
+ },
+ "settings": {
+  "roles.embed.model": {
+   "when": "runtime",
+   "hint": "Default embedding model"
+  },
+  "roles.decide.model": {
+   "when": "runtime",
+   "hint": "Default decision model"
+  },
+  "roles.embed.keep": {
+   "when": "runtime",
+   "hint": "Stay up once started"
+  },
+  "roles.decide.keep": {
+   "when": "runtime",
+   "hint": "Stay up once started"
+  }
+ },
+ "drivers": [
+  {
+   "name": "found",
+   "detect": {
+    "bins": [
+     "llama-server"
+    ]
+   },
+   "provides": {
+    "server": "llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "vulkan",
+   "requires": {
+    "gpu_vendors": [
+     "amd",
+     "intel",
+     "arm",
+     "qualcomm",
+     "nvidia"
+    ]
+   },
+   "programs": [
+    "cmake",
+    "c++",
+    "git",
+    "glslc"
+   ],
+   "files": [
+      "/usr/include/vulkan/vulkan.h",
+      "/usr/include/spirv/unified1/spirv.hpp"
+    ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git",
+     "glslc",
+     "libvulkan-dev",
+     "spirv-headers",
+     "mesa-vulkan-drivers"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git",
+     "glslc",
+     "vulkan-loader-devel",
+     "vulkan-headers",
+     "spirv-headers-devel",
+     "mesa-vulkan-drivers"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git",
+     "shaderc",
+     "spirv-headers",
+     "vulkan-headers",
+     "vulkan-icd-loader",
+     "vulkan-radeon"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader-android"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader",
+     "spirv-headers",
+     "mesa-vulkan-ati"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "vulkan"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF",
+       "-DGGML_VULKAN=ON"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "metal",
+   "requires": {
+    "os": [
+     "darwin"
+    ]
+   },
+   "programs": [
+    "cmake",
+    "c++",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git"
+    ],
+    "brew": [
+     "cmake",
+     "git"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "metal"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "cpu",
+   "programs": [
+    "cmake",
+    "c++",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git"
+    ],
+    "brew": [
+     "cmake",
+     "git"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "cpu"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF",
+       "-DGGML_NATIVE=ON"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  }
+ ]
+}

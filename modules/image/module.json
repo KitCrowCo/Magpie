@@ -1,0 +1,246 @@
+{
+ "name": "image",
+ "for": [
+  "image"
+ ],
+ "label": "Images and video: Flux.2 Klein and CogVideoX, in a PyTorch environment of its own",
+ "provides": [
+  "image_generate",
+  "image_sequence",
+  "text_to_video",
+  "image_to_video",
+  "start_end_to_video",
+  "video_join"
+ ],
+ "needs": [
+  "text_encoder"
+ ],
+ "settings": {
+  "adapters.flux2_image.runtime.env.DEFAULT_IMAGE_MODEL": {
+   "when": "runtime"
+  },
+  "adapters.flux2_image.idle_stop_s": {
+   "when": "runtime"
+  },
+  "adapters.flux2_image.memory.ram_gb": {
+   "when": "runtime"
+  }
+ },
+ "drivers": [
+  {
+   "name": "torch_rocm",
+   "requires": {
+    "needs_kfd": true,
+    "min_ram_gb": 16
+   },
+   "programs": [
+    "ffmpeg",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "ffmpeg",
+     "git",
+     "libgl1",
+     "libglib2.0-0"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/rocm6.3",
+     "hint": "PyTorch's wheel index for ROCm; these wheels bring their own runtime"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "transformers==4.51.3",
+      "accelerate>=1.1.0",
+      "gguf>=0.10.0",
+      "peft>=0.11.0",
+      "git+https://github.com/huggingface/diffusers.git@v0.39.0",
+      "sentencepiece",
+      "protobuf",
+      "pillow"
+     ]
+    }
+   ],
+   "credits": {
+    "project": "PyTorch, diffusers, Flux.2 and CogVideoX model authors",
+    "url": "https://github.com/huggingface/diffusers"
+   }
+  },
+  {
+   "name": "torch_cpu",
+   "requires": {
+    "min_ram_gb": 16
+   },
+   "programs": [
+    "ffmpeg",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "ffmpeg",
+     "git",
+     "libgl1",
+     "libglib2.0-0"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/cpu"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "transformers==4.51.3",
+      "accelerate>=1.1.0",
+      "gguf>=0.10.0",
+      "peft>=0.11.0",
+      "git+https://github.com/huggingface/diffusers.git@v0.39.0",
+      "sentencepiece",
+      "protobuf",
+      "pillow"
+     ]
+    }
+   ],
+   "credits": {
+    "project": "PyTorch, diffusers, Flux.2 and CogVideoX model authors",
+    "url": "https://github.com/huggingface/diffusers"
+   }
+  }
+ ],
+ "defaults": {
+  "_doc": "A narrow, hyper-specific working method (diffusers overrides, ROCm attention patches) kept inside its adapter, so another image engine can sit beside it or replace it. Models in image_models, results in outputs: both locations move like any other.",
+  "adapters": {
+   "flux2_image": {
+    "capabilities": {
+     "image_generate": {
+      "path": "/generate",
+      "rename": {
+       "model": "model_path"
+      }
+     },
+     "image_sequence": {
+      "path": "/generate/sequence",
+      "rename": {
+       "model": "model_path"
+      }
+     },
+     "text_to_video": {
+      "path": "/video",
+      "body_add": {
+       "mode": "text_to_video"
+      }
+     },
+     "image_to_video": {
+      "path": "/video",
+      "body_add": {
+       "mode": "image_to_video"
+      }
+     },
+     "start_end_to_video": {
+      "path": "/video",
+      "body_add": {
+       "mode": "start_end_to_video"
+      }
+     },
+     "video_join": {
+      "path": "/video/join"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{python}",
+      "-m",
+      "uvicorn",
+      "worker:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "cwd": "{dir}",
+     "health": "/system/status",
+     "start_timeout_s": 600,
+     "stop_timeout_s": 20,
+     "env": {
+      "OUTPUT_DIR": "{loc:outputs}",
+      "LORA_DIR": "{loc:image_models}/lora/flux2",
+      "TRANSFORMER_DIR": "{loc:image_models}/transformers",
+      "VAE_PATH": "{loc:image_models}/VAE",
+      "EMBED_VAULT_DIR": "{loc:vault}",
+      "PYTORCH_ALLOC_CONF": "expandable_segments:True",
+      "HSA_OVERRIDE_GFX_VERSION": "11.0.0",
+      "HF_HUB_OFFLINE": "1",
+      "PYTORCH_ROCM_ARCH": "{gfx}"
+     }
+    },
+    "memory": {
+     "ram_gb": 14,
+     "gpu_gb": 10
+    },
+    "idle_stop_s": 1800,
+    "cancel": {
+     "path": "/system/stop"
+    },
+    "models": {
+     "root": "image_models",
+     "glob": [
+      "transformers/**/*.gguf"
+     ],
+     "capabilities": [
+      "image_generate"
+     ],
+     "list_path": "/models"
+    },
+    "info": {
+     "image_status": {
+      "path": "/system/status",
+      "stopped": {
+       "status": "stopped",
+       "loaded": null
+      }
+     },
+     "image_progress": {
+      "path": "/system/progress",
+      "stopped": {}
+     }
+    },
+    "actions": {
+     "image_load": {
+      "path": "/system/load",
+      "starts": true
+     },
+     "image_unload": {
+      "path": "/system/unload"
+     },
+     "image_stop": {
+      "path": "/system/stop"
+     },
+     "image_clear_error": {
+      "path": "/system/clear_error"
+     }
+    }
+   }
+  }
+ }
+}

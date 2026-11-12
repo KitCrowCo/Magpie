@@ -1,0 +1,14 @@
+# Only 8790 is published: nothing this node runs is reachable except through it. MAGPIE_SETUP: what to install at first start, e.g. --for text,speech; blank: the auto modules; the rest from a portal.
+services:
+  magpie:
+    build: .
+    container_name: magpie
+    restart: unless-stopped
+    ports: ["8790:8790"]
+    devices: ["/dev/dri:/dev/dri", "/dev/kfd:/dev/kfd"]
+    group_add: ["44", "992"]
+    volumes: ["${MAGPIE_DATA_DIR:-./data}:/data"]
+    environment:
+      - NODE_ID=${NODE_ID:-}
+      - MAGPIE_ADMIN_KEY=${MAGPIE_ADMIN_KEY:-}
+      - MAGPIE_SETUP=${MAGPIE_SETUP:-}

@@ -1,0 +1,1 @@
+{"name": "llm", "label": "Shared code for text engines with an OpenAI-shaped API: message and tool-call translation", "provides": []}

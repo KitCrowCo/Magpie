@@ -1,0 +1,310 @@
+{
+ "name": "knowledge",
+ "label": "Knowledge: LightRAG graph-RAG instances and a reranker, reached only through this node",
+ "provides": [
+  "knowledge_query",
+  "knowledge_add",
+  "knowledge_upload",
+  "knowledge_status",
+  "knowledge_documents",
+  "knowledge_remove",
+  "knowledge_graph",
+  "knowledge_labels",
+  "knowledge_cancel",
+  "knowledge_retry",
+  "rerank"
+ ],
+ "defaults": {
+  "_doc": "instances: one per knowledge group, each its own server and data folder, managed through /knowledge (none to begin with). Each group names its own chat and embedding model ({source, model}: source empty for this node, else one of remote.sources); LLM_MODEL, EMBEDDING_MODEL and EMBEDDING_DIM are filled from them when its server starts, EMBEDDING_DIM measured from the model unless the group gives it. allowed: the only paths a client can reach. Its LLM and embedding calls come back through this node, so they queue with everything else. capabilities: how each contract capability is asked of the knowledge program (path, method, body from the request's fields, query: the URL's query from them with query_add as defaults, as: the name a bare-list answer is given, map from its answer to the contract's result, text: the part of the answer that is the reply). query_options: the program's own query options, listed with each group so a caller can offer them without knowing the program. pages: how a list is gathered over all its pages when no page is asked for (the program's largest page). replace: adding under a name the group holds replaces it, and the same content again is not sent.",
+  "instances": {},
+  "allowed": [
+   "/health",
+   "/query",
+   "/query/stream",
+   "/query/data",
+   "/documents",
+   "/documents/text",
+   "/documents/texts",
+   "/documents/upload",
+   "/documents/paginated",
+   "/documents/pipeline_status",
+   "/documents/track_status",
+   "/documents/reprocess_failed",
+   "/documents/cancel_pipeline",
+   "/documents/status_counts",
+   "/documents/delete_document",
+   "/documents/clear_cache",
+   "/graph/label/list",
+   "/graphs",
+   "/graph/entity/exists",
+   "/openapi.json"
+  ],
+  "adapters": {
+   "reranker": {
+    "enabled": false,
+    "capabilities": {
+     "rerank": {
+      "path": "/rerank"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{env}/bin/infinity_emb",
+      "v2",
+      "--model-id",
+      "mixedbread-ai/mxbai-rerank-xsmall-v1",
+      "--engine",
+      "torch",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "health": "/health",
+     "start_timeout_s": 600
+    },
+    "memory": {
+     "ram_gb": 1.5,
+     "keep": true
+    }
+   }
+  },
+  "runtime": {
+   "cmd": [
+    "{python}",
+    "-m",
+    "lightrag.api.lightrag_server",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "{port}"
+   ],
+   "health": "/health",
+   "start_timeout_s": 180,
+   "env": {
+    "WORKING_DIR": "{loc:knowledge}/{instance}/rag_storage",
+    "INPUT_DIR": "{loc:knowledge}/{instance}/inputs",
+    "WORKSPACE": "{instance}",
+    "WORKERS": "1",
+    "LLM_BINDING": "ollama",
+    "LLM_BINDING_HOST": "http://127.0.0.1:{node_port}",
+    "OLLAMA_API_KEY": "{local_key}",
+    "EMBEDDING_BINDING": "ollama",
+    "EMBEDDING_BINDING_HOST": "http://127.0.0.1:{node_port}",
+    "LLM_MODEL": "",
+    "EMBEDDING_MODEL": "",
+    "MAX_ASYNC_LLM": "1",
+    "MAX_PARALLEL_INSERT": "1",
+    "OLLAMA_LLM_NUM_CTX": "16384",
+    "OLLAMA_LLM_NUM_PREDICT": "6000",
+    "LLM_TIMEOUT": "6000",
+    "EMBEDDING_TIMEOUT": "6000",
+    "TIKTOKEN_CACHE_DIR": "{env}/tiktoken"
+   }
+  },
+  "capabilities": {
+   "knowledge_query": {
+    "path": "/query",
+    "body": {
+     "query": "{query}",
+     "mode": "{mode}"
+    },
+    "body_add": {
+     "mode": "mix"
+    },
+    "options": true,
+    "map": {
+     "text": "response"
+    },
+    "text": "response",
+    "timeout_s": 2400
+   },
+   "knowledge_add": {
+    "path": "/documents/text",
+    "body": {
+     "text": "{text}",
+     "file_source": "{name}"
+    },
+    "pieces": {
+     "separator": "\n␞\n",
+     "body": {
+      "chunking": {
+       "strategy": "fixed_token",
+       "params": {
+        "split_by_character": "{separator}",
+        "split_by_character_only": false
+       }
+      }
+     }
+    },
+    "timeout_s": 600,
+    "replace": true
+   },
+   "knowledge_status": {
+    "path": "/documents/status_counts",
+    "method": "GET",
+    "also": {
+     "busy": {
+      "path": "/documents/pipeline_status",
+      "take": "busy"
+     },
+     "doing": {
+      "path": "/documents/pipeline_status",
+      "take": "latest_message"
+     }
+    },
+    "map": {
+     "counts": "status_counts"
+    }
+   },
+   "knowledge_documents": {
+    "path": "/documents/paginated",
+    "body": {
+     "page": "{page}",
+     "page_size": "{page_size}",
+     "status_filter": "{status}"
+    },
+    "body_add": {
+     "page": 1,
+     "page_size": 50
+    },
+    "pages": {
+     "size": 200,
+     "list": "documents",
+     "more": "pagination.has_next"
+    }
+   },
+   "knowledge_remove": {
+    "path": "/documents/delete_document",
+    "method": "DELETE",
+    "body": {
+     "doc_ids": "{ids}",
+     "delete_file": "{delete_file}"
+    }
+   },
+   "knowledge_upload": {
+    "path": "/documents/upload",
+    "upload": {
+     "field": "file"
+    },
+    "timeout_s": 900,
+    "replace": true
+   },
+   "knowledge_graph": {
+    "path": "/graphs",
+    "method": "GET",
+    "query": {
+     "label": "{label}",
+     "max_depth": "{depth}",
+     "max_nodes": "{max_nodes}"
+    },
+    "query_add": {
+     "label": "*",
+     "depth": 2,
+     "max_nodes": 300
+    },
+    "timeout_s": 120
+   },
+   "knowledge_labels": {
+    "path": "/graph/label/list",
+    "method": "GET",
+    "as": "labels"
+   },
+   "knowledge_cancel": {
+    "path": "/documents/cancel_pipeline",
+    "method": "POST"
+   },
+   "knowledge_retry": {
+    "path": "/documents/reprocess_failed",
+    "method": "POST"
+   }
+  },
+  "query_options": {
+   "enable_rerank": {
+    "type": "boolean",
+    "label": "Rerank results",
+    "hint": "Uses a reranker model if the server has one configured."
+   },
+   "only_need_context": {
+    "type": "boolean",
+    "label": "Retrieved context only",
+    "hint": "Gives what was retrieved and skips the program's own writing pass."
+   },
+   "top_k": {
+    "type": "integer",
+    "default": 20,
+    "label": "Top K"
+   },
+   "chunk_top_k": {
+    "type": "integer",
+    "default": 10,
+    "label": "Chunk Top K"
+   }
+  }
+ },
+ "for": [
+  "knowledge"
+ ],
+ "drivers": [
+  {
+   "name": "lightrag",
+   "options": {
+    "rerank": {
+     "default": "off",
+     "choices": [
+      "off",
+      "infinity"
+     ],
+     "hint": "A reranker pulls in PyTorch: leave off unless wanted"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "lightrag-hku[api]",
+      "ollama==0.6.2"
+     ]
+    },
+    {
+     "run": [
+      "{python}",
+      "-c",
+      "import importlib.util, shutil; shutil.copyfile('{dir}/ollama_client_patch.py', importlib.util.find_spec('ollama._client').origin)"
+     ]
+    },
+    {
+     "fetch": "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken",
+     "to": "{env}/tiktoken/fb374d419588a4632f3f557e76b4b70aebbca790",
+     "_why": "LightRAG counts tokens with tiktoken's o200k_base, which tiktoken otherwise downloads at the first start, from inside a network with no approved contact; the file name is the SHA-1 of the URL, as tiktoken caches it"
+    },
+    {
+     "pip": [
+      "infinity-emb[torch,server]"
+     ],
+     "when": {
+      "opt": "rerank",
+      "is": "infinity"
+     }
+    }
+   ],
+   "credits": {
+    "project": "LightRAG",
+    "url": "https://github.com/HKUDS/LightRAG",
+    "license": "MIT"
+   }
+  }
+ ],
+ "settings": {
+  "instances": {
+   "when": "now",
+   "pick": "knowledge_groups",
+   "hint": "the knowledge groups on this node, each with its own models",
+   "label": "Knowledge groups"
+  },
+  "adapters.reranker.enabled": {
+   "when": "runtime",
+   "label": "Reranker",
+   "hint": "true runs a small reranking model on this node (downloaded at its first start)"
+  }
+ }
+}

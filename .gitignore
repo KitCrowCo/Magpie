@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.save
+*.bak
+.ipynb*
+__pycache__/
+node.json
+data/
+.venv/
+magpie.env

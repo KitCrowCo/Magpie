@@ -1,0 +1,42 @@
+{
+ "name": "remote",
+ "always": true,
+ "label": "Remote: models another server serves (another Magpie node, an Ollama), offered on this node as <source>/<model>, through its queue and records",
+ "provides": [],
+ "defaults": {
+  "_doc": "sources: {name: {\"url\": \"http://host:port\", \"key\": \"\", \"enabled\": true}}. Any server answering Ollama's /api/tags, /api/chat, /api/generate and /api/embed works: another Magpie node (its compat module; key = a key of that node with infer scope) or an Ollama (no key). Its models appear here as <name>/<model>, so a program on this node (a knowledge server) uses a stronger machine without being given a route out. embed_names: names (globs) taken as embedding models when the source does not say what a model can do. refresh_s: how often the model lists are read again.",
+  "sources": {},
+  "embed_names": [
+   "*embed*",
+   "*bge-*",
+   "*minilm*",
+   "*e5-*",
+   "*gte-*",
+   "*nomic*",
+   "*arctic-embed*"
+  ],
+  "refresh_s": 60
+ },
+ "settings": {
+  "sources": {
+   "when": "now",
+   "hint": "{name: {\"url\": \"http://host:port\", \"key\": \"\"}} - each source's models appear as <name>/<model> within refresh_s",
+   "pick": "sources",
+   "label": "Model sources"
+  },
+  "embed_names": {
+   "when": "now",
+   "hint": "globs for embedding models when a source does not list capabilities",
+   "label": "Embedding model names"
+  },
+  "refresh_s": {
+   "when": "now",
+   "hint": "seconds between model list reads",
+   "label": "List refresh (seconds)"
+  }
+ },
+ "credits": {
+  "project": "Magpie",
+  "license": "AGPL-3.0"
+ }
+}

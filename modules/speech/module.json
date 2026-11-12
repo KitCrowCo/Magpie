@@ -1,0 +1,251 @@
+{
+ "name": "speech",
+ "for": [
+  "speech"
+ ],
+ "label": "Speech: speech-to-text, text-to-speech, voiceprints, on CPU with no GPU stack",
+ "provides": [
+  "speech_to_text",
+  "text_to_speech",
+  "speaker_embed"
+ ],
+ "settings": {
+  "adapters.speech.runtime.env.STT_MODEL": {
+   "when": "runtime",
+   "hint": "tiny, base, small, medium, large-v3"
+  },
+  "adapters.speech.runtime.env.TTS_VOICE": {
+   "when": "runtime"
+  },
+  "adapters.speech.idle_stop_s": {
+   "when": "runtime"
+  }
+ },
+ "drivers": [
+  {
+   "name": "onnx_cpu",
+   "programs": [
+    "ffmpeg",
+    "espeak-ng"
+   ],
+   "system": {
+    "apt-get": [
+     "ffmpeg",
+     "espeak-ng",
+     "libgomp1",
+     "python3-venv"
+    ],
+    "pkg": [
+     "ffmpeg",
+     "espeak"
+    ],
+    "brew": [
+     "ffmpeg",
+     "espeak-ng"
+    ],
+    "dnf": [
+     "ffmpeg",
+     "espeak-ng",
+     "libgomp"
+    ],
+    "pacman": [
+     "ffmpeg",
+     "espeak-ng"
+    ],
+    "apk": [
+     "ffmpeg",
+     "espeak-ng",
+     "libgomp"
+    ]
+   },
+   "options": {
+    "engines": {
+     "default": "piper,kokoro,espeak",
+     "hint": "Voices to support: piper, kokoro, espeak. Only what is named is installed"
+    },
+    "stt": {
+     "default": "small",
+     "choices": [
+      "none",
+      "tiny",
+      "base",
+      "small",
+      "medium",
+      "large-v3"
+     ],
+     "hint": "Recognizer size, fetched at install. none leaves speech to text out, and faster-whisper with it"
+    },
+    "voice": {
+     "default": "en_US-lessac-medium",
+     "hint": "A Piper voice, fetched at install when piper is among the engines"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "httpx",
+      "numpy",
+      "soundfile"
+     ]
+    },
+    {
+     "pip": [
+      "faster-whisper"
+     ],
+     "when": {
+      "opt": "stt",
+      "isnt": "none"
+     }
+    },
+    {
+     "pip": [
+      "piper-tts",
+      "huggingface_hub"
+     ],
+     "when": {
+      "opt": "engines",
+      "has": "piper"
+     }
+    },
+    {
+     "pip": [
+      "kokoro-onnx>=0.6.1"
+     ],
+     "when": {
+      "opt": "engines",
+      "has": "kokoro"
+     }
+    },
+    {
+     "run": [
+      "{python}",
+      "-c",
+      "from faster_whisper import WhisperModel; WhisperModel('{opt:stt}', device='cpu', compute_type='int8', download_root='{loc:audio_models}/whisper')"
+     ],
+     "when": {
+      "opt": "stt",
+      "isnt": "none"
+     }
+    },
+    {
+     "run": [
+      "{python}",
+      "-m",
+      "piper.download_voices",
+      "{opt:voice}",
+      "--download-dir",
+      "{loc:audio_models}/piper"
+     ],
+     "when": {
+      "opt": "engines",
+      "has": "piper"
+     }
+    },
+    {
+     "fetch": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+     "to": "{loc:audio_models}/kokoro/kokoro-v1.0.onnx",
+     "when": {
+      "opt": "engines",
+      "has": "kokoro"
+     }
+    },
+    {
+     "fetch": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
+     "to": "{loc:audio_models}/kokoro/voices-v1.0.bin",
+     "when": {
+      "opt": "engines",
+      "has": "kokoro"
+     }
+    }
+   ],
+   "credits": {
+    "project": "faster-whisper (MIT), Piper (GPL; per-voice licenses), kokoro-onnx (MIT), Kokoro-82M (Apache-2.0), eSpeak NG (GPL)"
+   }
+  }
+ ],
+ "defaults": {
+  "_doc": "One worker process in this module's own environment. Another engine (a better TTS, a phone-sized STT) is one more adapter here. Files are in the audio_models location.",
+  "adapters": {
+   "speech": {
+    "capabilities": {
+     "speech_to_text": {
+      "path": "/api/transcribe",
+      "when": {
+       "opt": "stt",
+       "isnt": "none"
+      }
+     },
+     "text_to_speech": {
+      "path": "/api/speak"
+     },
+     "speaker_embed": {
+      "path": "/api/speaker/embed"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{python}",
+      "-m",
+      "uvicorn",
+      "worker:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "cwd": "{dir}",
+     "env": {
+      "SPEECH_MODELS_DIR": "{loc:audio_models}",
+      "STT_MODEL": "{opt:stt}",
+      "STT_COMPUTE_TYPE": "int8",
+      "TTS_ENGINES": "{opt:engines}",
+      "TTS_VOICE": "",
+      "HF_HUB_OFFLINE": "1"
+     },
+     "health": "/health",
+     "start_timeout_s": 180
+    },
+    "memory": {
+     "ram_gb": 1.5
+    },
+    "idle_stop_s": 1800,
+    "models": {
+     "root": "audio_models",
+     "glob": [
+      "piper/**/*.onnx"
+     ],
+     "capabilities": [
+      "text_to_speech"
+     ]
+    },
+    "info": {
+     "voice_list": {
+      "path": "/api/voices",
+      "remember": true,
+      "stopped": {
+       "default": "",
+       "engines": [],
+       "installed": [],
+       "note": "this list fills in once the speech worker has run: POST /services/speech/start"
+      }
+     },
+     "stt_languages": {
+      "path": "/api/languages",
+      "remember": true,
+      "stopped": {
+       "languages": []
+      }
+     },
+     "speech_status": {
+      "path": "/health",
+      "stopped": {
+       "status": "stopped"
+      }
+     }
+    }
+   }
+  }
+ }
+}

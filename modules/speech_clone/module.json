@@ -1,0 +1,141 @@
+{
+ "name": "speech_clone",
+ "for": [
+  "speech"
+ ],
+ "label": "Voice clones (F5-TTS). PyTorch in its own environment; weights CC-BY-NC, personal non-commercial use",
+ "provides": [
+  "text_to_speech"
+ ],
+ "needs": [],
+ "drivers": [
+  {
+   "name": "torch_rocm",
+   "requires": {
+    "needs_kfd": true,
+    "min_ram_gb": 12
+   },
+   "programs": [
+    "ffmpeg"
+   ],
+   "system": {
+    "apt-get": [
+     "ffmpeg",
+     "libsndfile1"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/rocm6.3",
+     "hint": "PyTorch's wheel index for ROCm"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch",
+      "torchaudio"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "numpy<=1.26.4",
+      "soundfile",
+      "f5-tts==1.1.22"
+     ]
+    }
+   ],
+   "credits": {
+    "project": "F5-TTS",
+    "url": "https://github.com/SWivid/F5-TTS",
+    "license": "code MIT, weights CC-BY-NC"
+   }
+  },
+  {
+   "name": "torch_cpu",
+   "requires": {
+    "min_ram_gb": 12
+   },
+   "programs": [
+    "ffmpeg"
+   ],
+   "system": {
+    "apt-get": [
+     "ffmpeg",
+     "libsndfile1"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/cpu"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch",
+      "torchaudio"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "numpy<=1.26.4",
+      "soundfile",
+      "f5-tts==1.1.22"
+     ]
+    }
+   ],
+   "credits": {
+    "project": "F5-TTS",
+    "url": "https://github.com/SWivid/F5-TTS",
+    "license": "code MIT, weights CC-BY-NC"
+   }
+  }
+ ],
+ "defaults": {
+  "adapters": {
+   "speech_clone": {
+    "capabilities": {
+     "text_to_speech": {
+      "path": "/api/speak"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{python}",
+      "-m",
+      "uvicorn",
+      "worker:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "cwd": "{dir}/../speech",
+     "env": {
+      "SPEECH_MODELS_DIR": "{loc:audio_models}",
+      "TTS_ENGINES": "clone",
+      "TTS_VOICE": "clone:default",
+      "HF_HUB_OFFLINE": "1",
+      "WANDB_MODE": "disabled",
+      "HSA_OVERRIDE_GFX_VERSION": "11.0.0",
+      "PYTORCH_ROCM_ARCH": "{gfx}"
+     },
+     "health": "/health",
+     "start_timeout_s": 300
+    },
+    "memory": {
+     "ram_gb": 6,
+     "gpu_gb": 3
+    },
+    "idle_stop_s": 900
+   }
+  }
+ }
+}
