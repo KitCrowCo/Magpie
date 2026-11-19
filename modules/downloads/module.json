@@ -1,0 +1,14 @@
+{
+ "name": "downloads",
+ "label": "Downloads: files brought onto this machine from an address (model files from a repository), into one of its places",
+ "provides": [],
+ "defaults": {
+  "_doc": "A manager names an address and where the file goes; this node fetches it, resuming where a broken download stopped. Outside contact: the address named, and nothing else (no account, no telemetry). allow_hosts: when not empty, only these hosts (and their subdomains) are fetched from - for a closed network, a file server of your own. Nothing is replaced: a name that exists is refused until it is removed.",
+  "allow_hosts": [],
+  "chunk_bytes": 1048576
+ },
+ "settings": {
+  "allow_hosts": {"when": "now", "label": "Only from these hosts", "hint": "a list; empty: any host the machine can reach"}
+ },
+ "credits": {"project": "Magpie", "license": "AGPL-3.0"}
+}

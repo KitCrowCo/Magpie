@@ -1,0 +1,4 @@
+# The kernel: pure Python, installs on a phone or a small board with nothing to compile. Whatever a module needs goes in that module's own environment (core/drivers.py).
+starlette>=0.37
+uvicorn>=0.28
+httpx>=0.27

@@ -1,0 +1,19 @@
+{
+ "name": "relay",
+ "always": true,
+ "label": "Relay: a program's local port carried to a peer through the node's one port, by a manager's say",
+ "provides": [],
+ "defaults": {
+  "_doc": "expose: names a peer may reach -> a local port, or a service name. links: [{name, peer: http://host:port, key, local_port}], each a loopback listener carried to that name on that peer.",
+  "expose": {},
+  "links": []
+ },
+ "settings": {
+  "expose": {
+   "when": "runtime"
+  },
+  "links": {
+   "when": "runtime"
+  }
+ }
+}

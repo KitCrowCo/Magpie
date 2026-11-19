@@ -1,0 +1,356 @@
+{
+ "name": "colibri",
+ "label": "colibri: large MoE models with experts streamed from disk",
+ "provides": [
+  "chat"
+ ],
+ "needs": [
+  "llm"
+ ],
+ "defaults": {
+  "_doc": "Each folder with a config.json under the models location's colibri/ is a model. cmd placeholders: {model_path} {port} {ram_gb} {kv_slots} {ctx}. ram_gb unset: all the node can give. Lossless: never add --topp or --topk (they change which experts are routed). kv_slots 1 keeps DSpark drafting on. chat.tools: native, or text for models that reject tools. models.<folder>: any of these keys for one model. alone: while one of these models is up nothing else runs on this node (colibri sizes itself from the memory it finds free at start, so a neighbour starting later would take memory it already counted).",
+  "ctx": 32768,
+  "kv_slots": 1,
+  "idle_stop_s": 18000,
+  "start_timeout_s": 36000,
+  "read_timeout_s": 360000,
+  "cmd": [
+   "python3",
+   "{bin:coli}",
+   "serve",
+   "--model",
+   "{model_path}",
+   "--host",
+   "127.0.0.1",
+   "--port",
+   "{port}",
+   "--ram",
+   "{ram_gb}",
+   "--kv-slots",
+   "{kv_slots}",
+   "--ctx",
+   "{ctx}"
+  ],
+  "env": {
+   "COLI_TIMERS": "1",
+   "COLI_QUEUE_TIMEOUT": "36000"
+  },
+  "chat": {
+   "options": {
+    "temperature": "temperature",
+    "top_p": "top_p",
+    "num_predict": "max_tokens",
+    "seed": "seed",
+    "stop": "stop"
+   },
+   "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "num_predict": 16384
+   },
+   "think": {
+    "field": "reasoning_effort",
+    "map": {
+     "false": "none",
+     "off": "none",
+     "": "none",
+     "true": "high"
+    }
+   },
+   "usage": true,
+   "tools": "native"
+  },
+  "models": {},
+  "worker": {
+   "enabled": false,
+   "health": "tcp",
+   "port": 9100,
+   "start_timeout_s": 18000,
+   "ram_gb": 8,
+   "cmd": [
+    "python3",
+    "{bin:coli}",
+    "cluster",
+    "worker",
+    "--model",
+    "{loc:models}/colibri/deepseek-v41-flash",
+    "--port",
+    "{port}"
+   ]
+  },
+  "alone": true
+ },
+ "for": [
+  "moe"
+ ],
+ "settings": {
+  "alone": {
+   "when": "runtime",
+   "type": "boolean",
+   "per": "asset",
+   "label": "Run alone",
+   "hint": "everything else on this node stops while this model is up; it stops when other work needs the node"
+  },
+  "ram_gb": {
+   "when": "runtime",
+   "type": "number",
+   "per": "asset",
+   "min": 1,
+   "label": "Memory budget (GB)",
+   "hint": "what colibri is told it may use. More is not always faster: measure per model"
+  },
+  "ctx": {
+   "when": "runtime",
+   "type": "integer",
+   "per": "asset",
+   "min": 1,
+   "label": "Context (tokens)",
+   "hint": "longer prompts are refused; memory for it is held from the start"
+  },
+  "kv_slots": {
+   "when": "runtime",
+   "type": "integer",
+   "per": "asset",
+   "min": 1,
+   "label": "Conversations at once",
+   "hint": "1 keeps DSpark drafting on"
+  },
+  "idle_stop_s": {
+   "when": "runtime",
+   "type": "integer",
+   "per": "asset",
+   "min": 0,
+   "label": "Stop after idle (s)",
+   "hint": "0 keeps it up until other work needs the memory"
+  },
+  "pin_gb": {
+   "when": "runtime",
+   "type": "number",
+   "per": "asset",
+   "min": 0,
+   "label": "Pinned experts (GB)",
+   "hint": "memory for experts a placement plan keeps resident"
+  }
+ },
+ "drivers": [
+  {
+   "name": "vulkan",
+   "requires": {
+    "gpu_vendors": [
+     "amd",
+     "intel",
+     "arm",
+     "qualcomm",
+     "nvidia"
+    ],
+    "min_ram_gb": 8
+   },
+   "programs": [
+    "make",
+    "cc",
+    "git",
+    "python3",
+    "glslc"
+   ],
+   "files": [
+    "/usr/include/vulkan/vulkan.h"
+   ],
+   "system": {
+    "apt-get": [
+     "make",
+     "gcc",
+     "git",
+     "python3",
+     "glslc",
+     "libvulkan-dev",
+     "mesa-vulkan-drivers"
+    ],
+    "pkg": [
+     "make",
+     "clang",
+     "git",
+     "python",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader-android"
+    ],
+    "dnf": [
+     "make",
+     "gcc",
+     "git",
+     "python3",
+     "glslc",
+     "vulkan-loader-devel",
+     "vulkan-headers",
+     "mesa-vulkan-drivers"
+    ],
+    "pacman": [
+     "make",
+     "gcc",
+     "git",
+     "python",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-icd-loader",
+     "vulkan-radeon"
+    ],
+    "apk": [
+     "make",
+     "gcc",
+     "musl-dev",
+     "git",
+     "python3",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader",
+     "mesa-vulkan-ati"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "v2.0.0",
+     "hint": "A colibri release"
+    },
+    "engines": {
+     "default": "deepseek_v41,deepseek-v4,qwen36",
+     "hint": "Model families to build. Each is compiled, so this is decided before install; one you add later is another install"
+    },
+    "arch": {
+     "default": "{cpu_level}",
+     "hint": "x86-64-v4 uses AVX-512 (Zen 4 and newer, recent Intel), x86-64-v3 runs on any AVX2 CPU, native tunes for exactly this CPU; the default is the highest this CPU supports",
+     "choices": [
+      "x86-64-v4",
+      "x86-64-v3",
+      "x86-64-v2",
+      "native"
+     ]
+    }
+   },
+   "env": {
+    "COLI_VULKAN": "1"
+   },
+   "install": [
+    {
+     "git": "https://github.com/JustVugg/colibri",
+     "to": "colibri",
+     "ref": "{opt:ref}"
+    },
+    {
+     "each": "engines",
+     "run": [
+      "make",
+      "-C",
+      "{src}/colibri/c",
+      "{item}",
+      "ARCH={opt:arch}",
+      "VK=1"
+     ],
+     "cwd": "{src}/colibri"
+    }
+   ],
+   "provides": {
+    "coli": "{src}/colibri/c/coli"
+   },
+   "credits": {
+    "project": "colibri",
+    "url": "https://github.com/JustVugg/colibri",
+    "license": "see its LICENSE"
+   }
+  },
+  {
+   "name": "cpu",
+   "requires": {
+    "min_ram_gb": 8
+   },
+   "programs": [
+    "make",
+    "cc",
+    "git",
+    "python3"
+   ],
+   "system": {
+    "apt-get": [
+     "make",
+     "gcc",
+     "git",
+     "python3"
+    ],
+    "pkg": [
+     "make",
+     "clang",
+     "git",
+     "python"
+    ],
+    "brew": [
+     "make",
+     "git"
+    ],
+    "dnf": [
+     "make",
+     "gcc",
+     "git",
+     "python3"
+    ],
+    "pacman": [
+     "make",
+     "gcc",
+     "git",
+     "python"
+    ],
+    "apk": [
+     "make",
+     "gcc",
+     "musl-dev",
+     "git",
+     "python3"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "v2.0.0",
+     "hint": "A colibri release"
+    },
+    "engines": {
+     "default": "deepseek_v41,deepseek-v4,qwen36",
+     "hint": "Model families to build. Each is compiled, so this is decided before install; one you add later is another install"
+    },
+    "arch": {
+     "default": "{cpu_level}",
+     "hint": "x86-64-v4 uses AVX-512 (Zen 4 and newer, recent Intel), x86-64-v3 runs on any AVX2 CPU, native tunes for exactly this CPU; the default is the highest this CPU supports",
+     "choices": [
+      "x86-64-v4",
+      "x86-64-v3",
+      "x86-64-v2",
+      "native"
+     ]
+    }
+   },
+   "install": [
+    {
+     "git": "https://github.com/JustVugg/colibri",
+     "to": "colibri",
+     "ref": "{opt:ref}"
+    },
+    {
+     "each": "engines",
+     "run": [
+      "make",
+      "-C",
+      "{src}/colibri/c",
+      "{item}",
+      "ARCH={opt:arch}"
+     ],
+     "cwd": "{src}/colibri"
+    }
+   ],
+   "provides": {
+    "coli": "{src}/colibri/c/coli"
+   },
+   "credits": {
+    "project": "colibri",
+    "url": "https://github.com/JustVugg/colibri",
+    "license": "see its LICENSE"
+   }
+  }
+ ]
+}

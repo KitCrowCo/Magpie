@@ -1,0 +1,1 @@
+{"name": "compat", "always": true, "label": "Common wire formats on the one port: Ollama (/api/...), OpenAI (/v1/...), a diagnostic chat page", "provides": []}
