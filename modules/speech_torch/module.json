@@ -1,0 +1,262 @@
+{
+ "name": "speech_torch",
+ "for": [
+  "speech"
+ ],
+ "label": "Speech on PyTorch: cloned voices that keep one voice across languages (Qwen3-TTS: zh, en, ja, ko, de, fr, ru, pt, es, it)",
+ "provides": [
+  "text_to_speech",
+  "voice_clone_add"
+ ],
+ "contract": {
+  "voice_clone_add": {
+   "request": [
+    "name",
+    "audio_b64",
+    "text"
+   ],
+   "result": [
+    "voice"
+   ]
+  }
+ },
+ "settings": {
+  "adapters.speech_torch.runtime.env.QWEN3_TTS_MODEL": {
+   "when": "runtime",
+   "hint": "The model folder under audio models/qwen3-tts: Qwen3-TTS-12Hz-0.6B-Base (about 2.5 GB, faster) or Qwen3-TTS-12Hz-1.7B-Base (better, slower). Only Base models clone."
+  },
+  "adapters.speech_torch.runtime.env.TTS_DEVICE": {
+   "when": "runtime",
+   "hint": "auto: the GPU when PyTorch sees one, else the processor (3 to 5 times slower than real time there). cpu forces the processor."
+  },
+  "adapters.speech_torch.runtime.env.TTS_DTYPE": {
+   "when": "runtime",
+   "hint": "auto: bfloat16 on a GPU, float32 on the processor. float16 or float32 if bfloat16 misbehaves on a GPU."
+  },
+  "adapters.speech_torch.idle_stop_s": {
+   "when": "runtime"
+  },
+  "adapters.speech_torch.memory.ram_gb": {
+   "when": "runtime"
+  }
+ },
+ "drivers": [
+  {
+   "name": "torch_rocm",
+   "requires": {
+    "needs_kfd": true,
+    "min_ram_gb": 8
+   },
+   "programs": [
+    "sox"
+   ],
+   "system": {
+    "apt-get": [
+     "sox",
+     "libsndfile1"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/rocm6.3",
+     "hint": "PyTorch's wheel index for ROCm; these wheels bring their own runtime"
+    },
+    "model": {
+     "default": "Qwen3-TTS-12Hz-0.6B-Base",
+     "choices": [
+      "none",
+      "Qwen3-TTS-12Hz-0.6B-Base",
+      "Qwen3-TTS-12Hz-1.7B-Base"
+     ],
+     "hint": "Fetched once at install from Hugging Face (huggingface.co is contacted then, never at run time). none: put the model folder under audio models/qwen3-tts yourself"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch",
+      "torchaudio"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "numpy",
+      "soundfile",
+      "librosa",
+      "sox",
+      "onnxruntime",
+      "einops",
+      "transformers==4.57.3",
+      "accelerate==1.12.0",
+      "huggingface_hub"
+     ],
+     "_doc": "qwen-tts's own requirements without gradio (its demo page only)"
+    },
+    {
+     "pip": [
+      "--no-deps",
+      "qwen-tts==0.1.1"
+     ]
+    },
+    {
+     "run": [
+      "{python}",
+      "-c",
+      "import os; os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'; from huggingface_hub import snapshot_download; snapshot_download('Qwen/{opt:model}', local_dir='{loc:audio_models}/qwen3-tts/{opt:model}')"
+     ],
+     "when": {
+      "opt": "model",
+      "isnt": "none"
+     }
+    }
+   ],
+   "credits": {
+    "project": "Qwen3-TTS (Apache-2.0), PyTorch, transformers",
+    "url": "https://github.com/QwenLM/Qwen3-TTS"
+   }
+  },
+  {
+   "name": "torch_cpu",
+   "requires": {
+    "min_ram_gb": 8
+   },
+   "programs": [
+    "sox"
+   ],
+   "system": {
+    "apt-get": [
+     "sox",
+     "libsndfile1"
+    ]
+   },
+   "options": {
+    "torch_index": {
+     "default": "https://download.pytorch.org/whl/cpu"
+    },
+    "model": {
+     "default": "Qwen3-TTS-12Hz-0.6B-Base",
+     "choices": [
+      "none",
+      "Qwen3-TTS-12Hz-0.6B-Base",
+      "Qwen3-TTS-12Hz-1.7B-Base"
+     ],
+     "hint": "Fetched once at install from Hugging Face. On the processor expect 3 to 5 times slower than real time: for prepared speech, not conversation"
+    }
+   },
+   "install": [
+    {
+     "pip": [
+      "torch",
+      "torchaudio"
+     ],
+     "index": "{opt:torch_index}"
+    },
+    {
+     "pip": [
+      "fastapi",
+      "uvicorn",
+      "numpy",
+      "soundfile",
+      "librosa",
+      "sox",
+      "onnxruntime",
+      "einops",
+      "transformers==4.57.3",
+      "accelerate==1.12.0",
+      "huggingface_hub"
+     ]
+    },
+    {
+     "pip": [
+      "--no-deps",
+      "qwen-tts==0.1.1"
+     ]
+    },
+    {
+     "run": [
+      "{python}",
+      "-c",
+      "import os; os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'; from huggingface_hub import snapshot_download; snapshot_download('Qwen/{opt:model}', local_dir='{loc:audio_models}/qwen3-tts/{opt:model}')"
+     ],
+     "when": {
+      "opt": "model",
+      "isnt": "none"
+     }
+    }
+   ],
+   "credits": {
+    "project": "Qwen3-TTS (Apache-2.0), PyTorch, transformers",
+    "url": "https://github.com/QwenLM/Qwen3-TTS"
+   }
+  }
+ ],
+ "defaults": {
+  "_doc": "One worker in this module's own environment (its transformers version differs from the image module's). Voices are the clone folders in the audio models location (clones/<name>/ref.wav + ref.txt, the same folders the CPU speech module's F5 engine reads), offered as qwen3:<name>. voice_clone_add makes a new folder from a recording; a name that exists is refused.",
+  "adapters": {
+   "speech_torch": {
+    "capabilities": {
+     "text_to_speech": {
+      "path": "/api/speak"
+     },
+     "voice_clone_add": {
+      "path": "/api/clones"
+     }
+    },
+    "runtime": {
+     "cmd": [
+      "{python}",
+      "-m",
+      "uvicorn",
+      "worker:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}"
+     ],
+     "cwd": "{dir}",
+     "env": {
+      "SPEECH_MODELS_DIR": "{loc:audio_models}",
+      "QWEN3_TTS_MODEL": "{opt:model}",
+      "TTS_DEVICE": "auto",
+      "TTS_DTYPE": "auto",
+      "HF_HUB_OFFLINE": "1",
+      "HSA_OVERRIDE_GFX_VERSION": "11.0.0",
+      "PYTORCH_ROCM_ARCH": "{gfx}"
+     },
+     "health": "/health",
+     "start_timeout_s": 300
+    },
+    "memory": {
+     "ram_gb": 4.0
+    },
+    "idle_stop_s": 1800,
+    "models": [
+     {
+      "root": "audio_models",
+      "dirs": [
+       "clones/*"
+      ],
+      "name": "^clones/(.+)$",
+      "prefix": "qwen3:",
+      "capabilities": [
+       "text_to_speech"
+      ]
+     },
+     {
+      "root": "audio_models",
+      "dirs": [
+       "qwen3-tts/*"
+      ],
+      "name": "^qwen3-tts/(.+)$",
+      "capabilities": [
+       "voice_clone_add"
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

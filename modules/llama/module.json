@@ -1,0 +1,441 @@
+{
+ "name": "llama",
+ "label": "llama.cpp: chat, vision, completion, embeddings, decision models, LoRA, KV cache",
+ "provides": [
+  "chat",
+  "generate",
+  "embed",
+  "decide"
+ ],
+ "needs": [
+  "llm"
+ ],
+ "defaults": {
+  "_doc": "embed_archs: GGUF architectures that only embed. roles: the small servers beside the main one - their llama-server arguments, whether they stay up once started (keep: the main model plans around them), and the default model when a request names none. parallel: requests one server of a model serves at once (llama-server -np) for a model file of at most parallel_max_gb (GB); each gets its share of the context, never below parallel_min_ctx tokens. Different models get their own servers and can be up side by side as memory allows.",
+  "embed_archs": [
+   "bert",
+   "nomic-bert",
+   "jina-bert-v2",
+   "new-bert",
+   "roberta",
+   "xlm-roberta"
+  ],
+  "role_ram_factor": 1.2,
+  "roles": {
+   "embed": {
+    "keep": true,
+    "idle_stop_s": 0,
+    "args": [
+     "--embedding",
+     "-c",
+     "8192",
+     "-b",
+     "2048",
+     "-ub",
+     "2048",
+     "-ngl",
+     "99",
+     "-t",
+     "2"
+    ]
+   },
+   "decide": {
+    "keep": true,
+    "idle_stop_s": 0,
+    "args": [
+     "-c",
+     "2048",
+     "-ngl",
+     "99",
+     "-t",
+     "2",
+     "--jinja"
+    ]
+   }
+  },
+  "parallel": "auto",
+  "parallel_guess": 4,
+  "parallel_most": 32,
+  "parallel_ctx": 8192,
+  "parallel_memory": 0.7,
+  "parallel_max_gb": 10,
+  "parallel_min_ctx": 4096
+ },
+ "auto": true,
+ "for": [
+  "text"
+ ],
+ "recommend": {
+  "min_ram_gb": 3
+ },
+ "settings": {
+  "roles.embed.model": {
+   "when": "runtime",
+   "hint": "Default embedding model"
+  },
+  "roles.decide.model": {
+   "when": "runtime",
+   "hint": "Default decision model"
+  },
+  "roles.embed.keep": {
+   "when": "runtime",
+   "hint": "Stay up once started"
+  },
+  "roles.decide.keep": {
+   "when": "runtime",
+   "hint": "Stay up once started"
+  },
+  "parallel": {
+   "label": "Requests at once per model",
+   "type": "text",
+   "when": "next load",
+   "hint": "\"auto\": as many as fit in memory (each with the context it asks for), up to parallel_most, within parallel_memory of the machine; or a number. Models larger than parallel_max_gb serve one at a time. A resource pool's own number for a model stands above this."
+  },
+  "parallel_most": {
+   "label": "Requests at once, most (auto)",
+   "type": "integer",
+   "when": "next load"
+  },
+  "parallel_ctx": {
+   "label": "Context per request when a request names none (auto)",
+   "type": "integer",
+   "when": "next load"
+  },
+  "parallel_memory": {
+   "label": "Share of memory one model may fill with requests at once (auto)",
+   "type": "number",
+   "when": "next load",
+   "hint": "0.7 leaves 30% for other programs on this machine."
+  },
+  "parallel_max_gb": {
+   "label": "Largest model file served several at once (GB)",
+   "type": "number",
+   "when": "next load"
+  },
+  "parallel_min_ctx": {
+   "label": "Smallest context share per request",
+   "type": "integer",
+   "when": "next load"
+  },
+  "overcommit_gb": {
+   "label": "How far over the system-RAM budget a start may be estimated (GB)",
+   "type": "number",
+   "default": 1,
+   "min": 0,
+   "when": "next load",
+   "hint": "A start estimated more than this over what the machine can give is refused with who holds the memory: on a machine whose GPU memory is system RAM such a load stalls the whole machine instead of failing. Within it the estimate only warns and the load decides."
+  }
+ },
+ "drivers": [
+  {
+   "name": "found",
+   "detect": {
+    "bins": [
+     "llama-server"
+    ]
+   },
+   "provides": {
+    "server": "llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "vulkan",
+   "requires": {
+    "gpu_vendors": [
+     "amd",
+     "intel",
+     "arm",
+     "qualcomm",
+     "nvidia"
+    ]
+   },
+   "programs": [
+    "cmake",
+    "c++",
+    "git",
+    "glslc"
+   ],
+   "files": [
+    "/usr/include/vulkan/vulkan.h",
+    "/usr/include/spirv/unified1/spirv.hpp"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git",
+     "glslc",
+     "libvulkan-dev",
+     "spirv-headers",
+     "mesa-vulkan-drivers"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git",
+     "glslc",
+     "vulkan-loader-devel",
+     "vulkan-headers",
+     "spirv-headers-devel",
+     "mesa-vulkan-drivers"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git",
+     "shaderc",
+     "spirv-headers",
+     "vulkan-headers",
+     "vulkan-icd-loader",
+     "vulkan-radeon"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader-android"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make",
+     "shaderc",
+     "vulkan-headers",
+     "vulkan-loader",
+     "spirv-headers",
+     "mesa-vulkan-ati"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "vulkan"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF",
+       "-DLLAMA_BUILD_WEBUI=OFF",
+       "-DLLAMA_BUILD_UI=OFF",
+       "-DLLAMA_USE_PREBUILT_UI=OFF",
+       "-DGGML_VULKAN=ON"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "metal",
+   "requires": {
+    "os": [
+     "darwin"
+    ]
+   },
+   "programs": [
+    "cmake",
+    "c++",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git"
+    ],
+    "brew": [
+     "cmake",
+     "git"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "metal"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF",
+       "-DLLAMA_BUILD_WEBUI=OFF",
+       "-DLLAMA_BUILD_UI=OFF",
+       "-DLLAMA_USE_PREBUILT_UI=OFF"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  },
+  {
+   "name": "cpu",
+   "programs": [
+    "cmake",
+    "c++",
+    "git"
+   ],
+   "system": {
+    "apt-get": [
+     "cmake",
+     "g++",
+     "git"
+    ],
+    "pkg": [
+     "cmake",
+     "clang",
+     "git"
+    ],
+    "brew": [
+     "cmake",
+     "git"
+    ],
+    "dnf": [
+     "cmake",
+     "gcc-c++",
+     "git"
+    ],
+    "pacman": [
+     "cmake",
+     "gcc",
+     "git"
+    ],
+    "apk": [
+     "cmake",
+     "g++",
+     "git",
+     "make"
+    ]
+   },
+   "options": {
+    "ref": {
+     "default": "master",
+     "hint": "A llama.cpp tag or commit; pin one for reproducible results"
+    }
+   },
+   "env": {
+    "LLAMA_BACKEND": "cpu"
+   },
+   "install": [
+    {
+     "git": "https://github.com/ggml-org/llama.cpp.git",
+     "to": "llama.cpp",
+     "ref": "{opt:ref}",
+     "build": [
+      [
+       "cmake",
+       "-B",
+       "build",
+       "-DCMAKE_BUILD_TYPE=Release",
+       "-DLLAMA_CURL=OFF",
+       "-DLLAMA_BUILD_TESTS=OFF",
+       "-DLLAMA_BUILD_WEBUI=OFF",
+       "-DLLAMA_BUILD_UI=OFF",
+       "-DLLAMA_USE_PREBUILT_UI=OFF",
+       "-DGGML_NATIVE=ON"
+      ],
+      [
+       "cmake",
+       "--build",
+       "build",
+       "--target",
+       "llama-server",
+       "-j{jobs}"
+      ]
+     ]
+    }
+   ],
+   "provides": {
+    "server": "{src}/llama.cpp/build/bin/llama-server"
+   },
+   "credits": {
+    "project": "llama.cpp",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "license": "MIT"
+   }
+  }
+ ]
+}

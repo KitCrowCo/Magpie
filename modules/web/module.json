@@ -1,0 +1,25 @@
+{
+ "name": "web",
+ "label": "Web: pages read and searches made by this node, for work that needs the outside. Off until activated; every address is journaled",
+ "provides": ["web_fetch", "web_search"],
+ "defaults": {
+  "_doc": "This node, not the portal, makes the calls: activate it on the machine that should be the one touching the outside (a research node). search_url: the address of a search server you run that answers SearXNG's JSON API (/search?q=..&format=json); without one, searches are refused and pages can still be read. allow_private: false refuses every address that is not a public one (this machine, the local network, link-local), also after each redirect, so a page cannot steer a reader into the local network. allow_hosts: when not empty, only these hosts (and their subdomains) are read. block_hosts: never read. max_bytes: a page larger than this is cut. Outside contact: reading a page contacts that page's server; a search contacts your search server, which contacts the search engines it is set up for.",
+  "search_url": "",
+  "allow_private": false,
+  "allow_hosts": [],
+  "block_hosts": [],
+  "max_bytes": 5000000,
+  "max_redirects": 5,
+  "timeout_s": 60,
+  "user_agent": "Mozilla/5.0 (compatible; Magpie-web)"
+ },
+ "settings": {
+  "search_url": {"when": "now", "label": "Search server address", "hint": "a SearXNG you run, e.g. http://host:8888; empty: no searching"},
+  "allow_private": {"when": "now", "label": "Allow local addresses", "hint": "false: only public addresses are read"},
+  "allow_hosts": {"when": "now", "label": "Only these hosts", "hint": "a list; empty: any public host"},
+  "block_hosts": {"when": "now", "label": "Never these hosts", "hint": "a list"},
+  "max_bytes": {"when": "now", "label": "Largest page (bytes)", "hint": "more is cut"},
+  "timeout_s": {"when": "now", "label": "Wait for a page (seconds)", "hint": ""}
+ },
+ "credits": {"project": "Magpie", "license": "AGPL-3.0"}
+}
